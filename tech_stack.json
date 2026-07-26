@@ -1,0 +1,47 @@
+
+{
+    "project": "hinkel-Website",
+    "version": "0.1.0",
+    "techStack": {
+        "core": {
+            "framework": "Next.js",
+            "version": "16.1.4",
+            "language": "TypeScript",
+            "library": "React",
+            "reactVersion": "19.2.3"
+        },
+        "styling": {
+            "cssFramework": "Tailwind CSS",
+            "cssVersion": "4",
+            "componentLibrary": "Shadcn UI",
+            "headlessPrimitives": "Radix UI",
+            "icons": "Lucide React, React Icons",
+            "animations": "tw-animate-css"
+        },
+        "stateManagement": {
+            "clientState": "Zustand"
+        },
+        "dataFetching": {
+            "httpLoader": "Axios",
+            "queryManagement": "TanStack React Query (v5)"
+        },
+        "forms": {
+            "library": "React Hook Form",
+            "validation": "Zod",
+            "resolvers": "@hookform/resolvers"
+        },
+        "authentication": {
+            "provider": "NextAuth.js"
+        },
+        "utilities": {
+            "pdfGeneration": "jsPDF",
+            "utilityClasses": "clsx, tailwind-merge, class-variance-authority"
+        },
+        "development": {
+            "linting": "ESLint",
+            "formatting": "Prettier",
+            "gitHooks": "Husky",
+            "commitLint": "Commitlint"
+        }
+    }
+}
