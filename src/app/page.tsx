@@ -158,7 +158,7 @@ export default function Home() {
           throw new Error(result?.error || "Unable to sign in");
         }
 
-        router.push(result.url || "/dashboard");
+        window.location.assign("/dashboard");
         return;
       }
 

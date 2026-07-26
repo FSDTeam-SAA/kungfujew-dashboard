@@ -77,9 +77,6 @@ const handler = NextAuth({
           const user = data.data?.user;
           const accessToken = data.data?.accessToken;
 
-          console.log("User details:", user);
-          console.log("Token:", accessToken);
-
           if (!user || !accessToken) {
             throw new Error("Invalid response from server");
           }

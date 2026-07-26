@@ -28,7 +28,7 @@ const manrope = Manrope({
 });
 
 export const metadata: Metadata = {
-  title: "sktch Labs",
+  title: "CCG | Dashboard",
   description:
     "Design amazing digital experiences that create more happy in the world.",
 };
