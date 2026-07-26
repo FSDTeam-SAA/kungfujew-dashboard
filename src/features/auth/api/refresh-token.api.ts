@@ -1,14 +1,34 @@
-// src/features/auth/api/refresh-token.api.ts
-import { api } from "@/lib/api";
+interface ApiResponse<T> {
+  data: T;
+  message: string;
+  statusCode: number;
+}
 
-export const refreshAccessToken = async (refreshToken: string) => {
-  try {
-    const response = await api.post("/auth/refresh-access-token", {
-      refreshToken,
-    });
-    return response.data;
-  } catch (error) {
-    console.error("Refresh token error:", error);
-    throw error;
+export interface RefreshedTokens {
+  accessToken: string;
+  expiresIn: number;
+  refreshToken: string;
+}
+
+export async function refreshAccessToken(
+  refreshToken: string,
+): Promise<RefreshedTokens> {
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL;
+
+  if (!baseUrl) {
+    throw new Error("NEXT_PUBLIC_API_URL is not configured");
   }
-};
+
+  const response = await fetch(`${baseUrl}/auth/refresh-token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refreshToken }),
+  });
+  const payload = (await response.json()) as ApiResponse<RefreshedTokens>;
+
+  if (!response.ok) {
+    throw new Error(payload.message || "Unable to refresh the session");
+  }
+
+  return payload.data;
+}

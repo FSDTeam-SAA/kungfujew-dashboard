@@ -14,7 +14,6 @@ declare module "next-auth" {
       role: string;
     };
     accessToken: string;
-    refreshToken: string;
   }
 
   interface User {
@@ -55,6 +54,10 @@ const handler = NextAuth({
           throw new Error("Email and password are required");
         }
 
+        if (!baseUrl) {
+          throw new Error("NEXT_PUBLIC_API_URL is not configured");
+        }
+
         try {
           const res = await fetch(`${baseUrl}/auth/login`, {
             method: "POST",
@@ -66,7 +69,6 @@ const handler = NextAuth({
           });
 
           const data = await res.json();
-          console.log("API Login Response:", JSON.stringify(data, null, 2));
 
           if (!res.ok) {
             throw new Error(data.message || "Login failed");
@@ -82,19 +84,19 @@ const handler = NextAuth({
             throw new Error("Invalid response from server");
           }
 
-          // Return the object that NextAuth will use as 'user' in the jwt callback
           return {
-            id: user._id || user.id, // Ensure we get the ID
-            name: user.name,
+            id: user.id,
+            name: user.fullName,
             email: user.email,
-            image: user.profileImage, // Map profileImage to image
+            image: "",
             role: user.role,
-            token: accessToken, // We attach the token here as a property of the user
-            refreshToken: user.refreshToken,
+            token: accessToken,
+            refreshToken: data.data?.refreshToken,
           };
         } catch (error) {
-          console.error("Authorize error:", error);
-          throw new Error("Invalid email or password");
+          throw error instanceof Error
+            ? error
+            : new Error("Invalid email or password");
         }
       },
     }),
@@ -117,7 +119,7 @@ const handler = NextAuth({
           role: user.role,
           accessToken: user.token,
           refreshToken: user.refreshToken,
-          accessTokenExpires: Date.now() + 60 * 60 * 1000, // Default 1 hour expiry
+          accessTokenExpires: Date.now() + 60 * 60 * 1000,
         };
       }
 
@@ -135,15 +137,11 @@ const handler = NextAuth({
       try {
         const refreshedTokens = await refreshAccessToken(token.refreshToken);
 
-        if (!refreshedTokens.status) {
-          throw refreshedTokens;
-        }
-
         return {
           ...token,
-          accessToken: refreshedTokens.data.accessToken,
-          accessTokenExpires: Date.now() + 60 * 60 * 1000, // Update expiration
-          refreshToken: refreshedTokens.data.refreshToken || token.refreshToken, // Fallback to old refresh token
+          accessToken: refreshedTokens.accessToken,
+          accessTokenExpires: Date.now() + refreshedTokens.expiresIn * 1000,
+          refreshToken: refreshedTokens.refreshToken,
         };
       } catch (error) {
         console.error("Error refreshing access token", error);
@@ -165,7 +163,6 @@ const handler = NextAuth({
           role: token.role,
         };
         session.accessToken = token.accessToken;
-        session.refreshToken = token.refreshToken;
         session.error = token.error;
       }
       return session;
