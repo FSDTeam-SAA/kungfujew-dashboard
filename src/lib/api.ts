@@ -5,7 +5,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export const api = axios.create({
   baseURL: API_URL,
-  withCredentials: true,
+  withCredentials: false,
 });
 
 // Request interceptor to add the access token to headers
@@ -34,17 +34,23 @@ api.interceptors.response.use(
 
       const session = await getSession();
 
-      // If there's an error in the session (refresh failed), log out
-      if (session?.error === "RefreshAccessTokenError") {
-        signOut({ callbackUrl: "/login" });
+      const currentAuthorization = originalRequest.headers?.Authorization;
+      const refreshedAuthorization = session?.accessToken
+        ? `Bearer ${session.accessToken}`
+        : undefined;
+
+      // A revoked token cannot be repaired by retrying the same bearer token.
+      if (
+        session?.error === "RefreshAccessTokenError" ||
+        !refreshedAuthorization ||
+        refreshedAuthorization === currentAuthorization
+      ) {
+        await signOut({ callbackUrl: "/" });
         return Promise.reject(error);
       }
 
-      // If we have a new access token, retry the request
-      if (session?.accessToken) {
-        originalRequest.headers.Authorization = `Bearer ${session.accessToken}`;
-        return api(originalRequest);
-      }
+      originalRequest.headers.Authorization = refreshedAuthorization;
+      return api(originalRequest);
     }
 
     return Promise.reject(error);

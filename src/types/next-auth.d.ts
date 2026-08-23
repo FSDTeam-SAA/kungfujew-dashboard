@@ -22,6 +22,7 @@ declare module "next-auth" {
     role: "admin" | "user" | string;
     token: string;
     refreshToken: string;
+    expiresIn: number;
   }
 }
 

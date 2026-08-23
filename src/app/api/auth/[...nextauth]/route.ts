@@ -24,6 +24,7 @@ declare module "next-auth" {
     role: string;
     token: string;
     refreshToken: string;
+    expiresIn: number;
   }
 }
 
@@ -76,8 +77,14 @@ const handler = NextAuth({
 
           const user = data.data?.user;
           const accessToken = data.data?.accessToken;
+          const expiresIn = data.data?.expiresIn;
 
-          if (!user || !accessToken) {
+          if (
+            !user ||
+            !accessToken ||
+            !Number.isFinite(expiresIn) ||
+            expiresIn <= 0
+          ) {
             throw new Error("Invalid response from server");
           }
 
@@ -89,6 +96,7 @@ const handler = NextAuth({
             role: user.role,
             token: accessToken,
             refreshToken: data.data?.refreshToken,
+            expiresIn,
           };
         } catch (error) {
           throw error instanceof Error
@@ -116,7 +124,7 @@ const handler = NextAuth({
           role: user.role,
           accessToken: user.token,
           refreshToken: user.refreshToken,
-          accessTokenExpires: Date.now() + 60 * 60 * 1000,
+          accessTokenExpires: Date.now() + user.expiresIn * 1000,
         };
       }
 
