@@ -1,3 +1,7 @@
+"use client";
+
+import { useState } from "react";
+import { signOut } from "next-auth/react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -19,6 +23,12 @@ const navigation = [
     label: "Dashboard Overview",
     href: "/dashboard",
     icon: LayoutDashboard,
+  },
+  {
+    id: "stories",
+    label: "Shipment Stories",
+    href: "/dashboard/stories",
+    icon: PackageSearch,
   },
   {
     id: "orders",
@@ -57,10 +67,11 @@ export function DashboardShell({
   description: string;
   children: ReactNode;
 }) {
+  const [menuOpen, setMenuOpen] = useState(false);
   return (
     <div className="min-h-screen bg-[#fbfcff] font-sans text-[#222] lg:grid lg:grid-cols-[312px_minmax(0,1fr)]">
       <aside className="border-b border-[#e6e7e6] bg-white p-4 lg:min-h-screen lg:border-b-0 lg:border-r lg:p-6">
-        <div className="flex items-center gap-3 lg:flex-col lg:gap-10">
+        <div className="flex flex-wrap items-center gap-3 lg:flex-col lg:gap-10">
           <Image
             src="/images/dashboard/brand.png"
             alt="Kungfujew"
@@ -71,7 +82,7 @@ export function DashboardShell({
           />
           <nav
             aria-label="Dashboard"
-            className="hidden w-full space-y-4 lg:block"
+            className={`${menuOpen ? "block" : "hidden"} w-full space-y-4 lg:block`}
           >
             {navigation.map(({ id, label, href, icon: Icon }) => (
               <Link
@@ -83,17 +94,20 @@ export function DashboardShell({
                 {label}
               </Link>
             ))}
-            <Link
-              href="/"
+            <button
+              type="button"
+              onClick={() => signOut({ callbackUrl: "/" })}
               className="mt-4 flex h-12 items-center gap-2 rounded-md px-3 text-base text-[#e5102e] hover:bg-red-50"
             >
               <LogOut className="size-6" />
               Log Out
-            </Link>
+            </button>
           </nav>
           <button
             className="ml-auto rounded-md p-2 text-[#1d2b4f] lg:hidden"
-            aria-label="Open navigation"
+            aria-label="Toggle navigation"
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen(!menuOpen)}
           >
             <Menu />
           </button>

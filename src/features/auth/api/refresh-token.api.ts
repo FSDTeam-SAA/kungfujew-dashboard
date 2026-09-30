@@ -13,7 +13,9 @@ export interface RefreshedTokens {
 export async function refreshAccessToken(
   refreshToken: string,
 ): Promise<RefreshedTokens> {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL;
+  const baseUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000")
+    .replace(/\/+$/, "")
+    .replace(/\/api\/v1$/, "");
 
   if (!baseUrl) {
     throw new Error("NEXT_PUBLIC_API_URL is not configured");

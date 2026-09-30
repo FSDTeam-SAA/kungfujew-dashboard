@@ -4,7 +4,6 @@ import Image from "next/image";
 import { Eye, EyeOff, TimerReset } from "lucide-react";
 import { signIn } from "next-auth/react";
 import { FormEvent, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,7 +46,9 @@ async function postAuth<T>(
   path: string,
   body: Record<string, string>,
 ): Promise<T> {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL;
+  const baseUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000")
+    .replace(/\/+$/, "")
+    .replace(/\/api\/v1$/, "");
 
   if (!baseUrl) {
     throw new Error("NEXT_PUBLIC_API_URL is not configured");
@@ -117,7 +118,6 @@ function PasswordInput({
 }
 
 export default function Home() {
-  const router = useRouter();
   const [step, setStep] = useState<AuthStep>("login");
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");

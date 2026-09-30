@@ -924,13 +924,3 @@ function PaymentMetric({
     </article>
   );
 }
-export function SettingsView() {
-  return (
-    <Panel title="Settings">
-      <p>
-        Profile and administration settings are available through the protected
-        API.
-      </p>
-    </Panel>
-  );
-}

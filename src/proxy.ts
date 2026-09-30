@@ -14,7 +14,7 @@ export async function proxy(request: NextRequest) {
   if (isGuest && pathname.startsWith("/dashboard")) {
     const callbackUrl = encodeURIComponent(pathname);
     return NextResponse.redirect(
-      new URL(`/login?callbackUrl=${callbackUrl}`, request.url),
+      new URL(`/?callbackUrl=${callbackUrl}`, request.url),
     );
   }
 

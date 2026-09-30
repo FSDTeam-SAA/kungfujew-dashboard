@@ -2,7 +2,9 @@
 
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-const baseUrl = process.env.NEXT_PUBLIC_API_URL;
+const baseUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000")
+  .replace(/\/+$/, "")
+  .replace(/\/api\/v1$/, "");
 
 declare module "next-auth" {
   interface Session {
@@ -23,6 +25,7 @@ declare module "next-auth" {
     image: string;
     role: string;
     token: string;
+    expiresIn: number;
     refreshToken: string;
   }
 }
@@ -88,6 +91,10 @@ const handler = NextAuth({
             image: "",
             role: user.role,
             token: accessToken,
+            expiresIn:
+              typeof data.data.expiresIn === "number"
+                ? data.data.expiresIn
+                : 900,
             refreshToken: data.data?.refreshToken,
           };
         } catch (error) {
@@ -116,13 +123,17 @@ const handler = NextAuth({
           role: user.role,
           accessToken: user.token,
           refreshToken: user.refreshToken,
-          accessTokenExpires: Date.now() + 60 * 60 * 1000,
+          accessTokenExpires: Date.now() + user.expiresIn * 1000,
         };
       }
 
       // Update session trigger
       if (trigger === "update" && session) {
-        return { ...token, ...session.user };
+        return {
+          ...token,
+          name: session.user?.name ?? token.name,
+          email: session.user?.email ?? token.email,
+        };
       }
 
       // Return previous token if the access token has not expired yet

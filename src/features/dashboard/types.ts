@@ -1,5 +1,11 @@
 export type DashboardSection =
-  "overview" | "orders" | "payments" | "customers" | "settings";
+  | "overview"
+  | "orders"
+  | "payments"
+  | "customers"
+  | "settings"
+  | "stories"
+  | "projects";
 
 export interface ApiEnvelope<T> {
   data: T;

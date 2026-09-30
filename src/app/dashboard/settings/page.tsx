@@ -1,5 +1,5 @@
 import { DashboardShell } from "@/features/dashboard/components/dashboard-shell";
-import { SettingsView } from "@/features/dashboard/components/dashboard-views";
+import SettingsView from "@/features/content/components/settings-view";
 
 export default function SettingsPage() {
   return (
