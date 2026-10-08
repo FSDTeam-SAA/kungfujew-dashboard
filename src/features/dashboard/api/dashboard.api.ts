@@ -56,9 +56,11 @@ export function getCustomer(email: string) {
   );
 }
 
-export function getPayments(params: OrderQuery) {
+export function getPayments({ balanceDue, ...params }: OrderQuery) {
+  const endpoint = balanceDue ? "/admin/orders/balance-due" : "/admin/payments";
+
   return unwrap(
-    api.get<ApiEnvelope<PaginatedResponse<OrderRecord>>>("/admin/payments", {
+    api.get<ApiEnvelope<PaginatedResponse<OrderRecord>>>(endpoint, {
       params,
     }),
   );

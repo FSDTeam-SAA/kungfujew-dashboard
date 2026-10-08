@@ -2,16 +2,19 @@
 
 import Image from "next/image";
 import { Eye, EyeOff, TimerReset } from "lucide-react";
-import { signIn } from "next-auth/react";
+import { getSession, signIn } from "next-auth/react";
 import { FormEvent, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import {
+  areaForPath,
+  canAccess,
+  isStaffRole,
+  landingForRole,
+} from "@/lib/access";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-type AuthStep =
-  "login" | "signup" | "forgot-password" | "verify-otp" | "change-password";
-type VerificationPurpose = "registration" | "password-reset";
+type AuthStep = "login" | "forgot-password" | "verify-otp" | "change-password";
 
 interface ApiResponse<T> {
   data: T;
@@ -24,10 +27,6 @@ const copy: Record<AuthStep, { title: string; description: string }> = {
   login: {
     title: "Welcome",
     description: "Sign in to oversee accounts, listings, and updates",
-  },
-  signup: {
-    title: "Create Account",
-    description: "Create an account to access the dashboard",
   },
   "forgot-password": {
     title: "Forgot Password",
@@ -117,15 +116,11 @@ function PasswordInput({
 }
 
 export default function Home() {
-  const router = useRouter();
   const [step, setStep] = useState<AuthStep>("login");
   const [email, setEmail] = useState("");
-  const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [resetToken, setResetToken] = useState("");
-  const [verificationPurpose, setVerificationPurpose] =
-    useState<VerificationPurpose>("password-reset");
   const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(""));
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -158,30 +153,24 @@ export default function Home() {
           throw new Error(result?.error || "Unable to sign in");
         }
 
-        window.location.assign("/dashboard");
-        return;
-      }
-
-      if (step === "signup") {
-        if (password !== confirmPassword) {
-          throw new Error("Passwords do not match");
-        }
-
-        await postAuth("/auth/register", {
-          email,
-          fullName,
-          password,
-          role: "customer",
-        });
-        setVerificationPurpose("registration");
-        goTo("verify-otp");
-        setNotice("Check your email for the verification code.");
+        const session = await getSession();
+        const role = session?.user?.role;
+        if (!isStaffRole(role))
+          throw new Error("This account does not have dashboard access");
+        const requested = new URLSearchParams(window.location.search).get(
+          "callbackUrl",
+        );
+        const destination =
+          requested?.startsWith("/dashboard") &&
+          canAccess(role, areaForPath(requested))
+            ? requested
+            : landingForRole(role);
+        window.location.assign(destination);
         return;
       }
 
       if (step === "forgot-password") {
         await postAuth("/auth/forgot-password", { email });
-        setVerificationPurpose("password-reset");
         goTo("verify-otp");
         setNotice("If an account exists, a reset code has been sent.");
         return;
@@ -191,15 +180,6 @@ export default function Home() {
         const code = otp.join("");
         if (code.length !== OTP_LENGTH) {
           throw new Error("Enter all six code digits");
-        }
-
-        if (verificationPurpose === "registration") {
-          await postAuth("/auth/verify-email", { code, email });
-          setPassword("");
-          setConfirmPassword("");
-          goTo("login");
-          setNotice("Email verified. You can now sign in.");
-          return;
         }
 
         const result = await postAuth<{ resetToken: string }>(
@@ -252,13 +232,8 @@ export default function Home() {
     setIsSubmitting(true);
 
     try {
-      if (verificationPurpose === "registration") {
-        await postAuth("/auth/resend-verification", { email });
-        setNotice("A new verification code has been sent.");
-      } else {
-        await postAuth("/auth/forgot-password", { email });
-        setNotice("If an account exists, a new reset code has been sent.");
-      }
+      await postAuth("/auth/forgot-password", { email });
+      setNotice("If an account exists, a new reset code has been sent.");
     } catch (resendError) {
       setError(
         resendError instanceof Error
@@ -313,18 +288,6 @@ export default function Home() {
                   onForgot={() => goTo("forgot-password")}
                 />
               )}
-              {step === "signup" && (
-                <SignupFields
-                  email={email}
-                  fullName={fullName}
-                  password={password}
-                  confirmPassword={confirmPassword}
-                  onEmailChange={setEmail}
-                  onFullNameChange={setFullName}
-                  onPasswordChange={setPassword}
-                  onConfirmPasswordChange={setConfirmPassword}
-                />
-              )}
               {step === "forgot-password" && (
                 <EmailField email={email} onChange={setEmail} />
               )}
@@ -376,28 +339,14 @@ export default function Home() {
                   ? "Please wait..."
                   : step === "login"
                     ? "Log In"
-                    : step === "signup"
-                      ? "Sign Up"
-                      : step === "forgot-password"
-                        ? "Send OTP"
-                        : step === "verify-otp"
-                          ? "Verify"
-                          : "Change Password"}
+                    : step === "forgot-password"
+                      ? "Send OTP"
+                      : step === "verify-otp"
+                        ? "Verify"
+                        : "Change Password"}
               </Button>
             </form>
 
-            {step === "login" && (
-              <p className="mt-10 text-center text-base text-[#2b2b2b]">
-                Don’t have an account?{" "}
-                <button
-                  type="button"
-                  onClick={() => goTo("signup")}
-                  className="font-bold text-[#1d2b4f] hover:underline"
-                >
-                  Sign Up
-                </button>
-              </p>
-            )}
             {step !== "login" && (
               <button
                 type="button"
@@ -474,59 +423,6 @@ function LoginFields({
           Forgot password?
         </button>
       </div>
-    </div>
-  );
-}
-
-function SignupFields({
-  email,
-  fullName,
-  password,
-  confirmPassword,
-  onEmailChange,
-  onFullNameChange,
-  onPasswordChange,
-  onConfirmPasswordChange,
-}: {
-  email: string;
-  fullName: string;
-  password: string;
-  confirmPassword: string;
-  onEmailChange: (value: string) => void;
-  onFullNameChange: (value: string) => void;
-  onPasswordChange: (value: string) => void;
-  onConfirmPasswordChange: (value: string) => void;
-}) {
-  return (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <label htmlFor="full-name" className="auth-label">
-          Full Name
-        </label>
-        <Input
-          id="full-name"
-          autoComplete="name"
-          value={fullName}
-          onChange={(event) => onFullNameChange(event.target.value)}
-          required
-          className="auth-input"
-        />
-      </div>
-      <EmailField email={email} onChange={onEmailChange} />
-      <PasswordInput
-        id="signup-password"
-        label="Password"
-        autoComplete="new-password"
-        value={password}
-        onChange={onPasswordChange}
-      />
-      <PasswordInput
-        id="signup-confirm-password"
-        label="Confirm Password"
-        autoComplete="new-password"
-        value={confirmPassword}
-        onChange={onConfirmPasswordChange}
-      />
     </div>
   );
 }

@@ -2,7 +2,22 @@
 
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import { z } from "zod";
+import { isStaffRole } from "@/lib/access";
 const baseUrl = process.env.NEXT_PUBLIC_API_URL;
+const loginResponseSchema = z.object({
+  data: z.object({
+    user: z.object({
+      id: z.string().min(1),
+      fullName: z.string(),
+      email: z.string().email(),
+      role: z.string(),
+    }),
+    accessToken: z.string().min(1),
+    refreshToken: z.string().min(1),
+    expiresIn: z.number().positive(),
+  }),
+});
 
 declare module "next-auth" {
   interface Session {
@@ -69,23 +84,19 @@ const handler = NextAuth({
             }),
           });
 
-          const data = await res.json();
+          const payload: unknown = await res.json();
 
           if (!res.ok) {
-            throw new Error(data.message || "Login failed");
+            throw new Error(getResponseMessage(payload) ?? "Login failed");
           }
-
-          const user = data.data?.user;
-          const accessToken = data.data?.accessToken;
-          const expiresIn = data.data?.expiresIn;
-
-          if (
-            !user ||
-            !accessToken ||
-            !Number.isFinite(expiresIn) ||
-            expiresIn <= 0
-          ) {
+          const parsed = loginResponseSchema.safeParse(payload);
+          if (!parsed.success) {
             throw new Error("Invalid response from server");
+          }
+          const { user, accessToken, refreshToken, expiresIn } =
+            parsed.data.data;
+          if (!isStaffRole(user.role)) {
+            throw new Error("This account does not have dashboard access");
           }
 
           return {
@@ -95,7 +106,7 @@ const handler = NextAuth({
             image: "",
             role: user.role,
             token: accessToken,
-            refreshToken: data.data?.refreshToken,
+            refreshToken,
             expiresIn,
           };
         } catch (error) {
@@ -112,7 +123,7 @@ const handler = NextAuth({
   },
 
   callbacks: {
-    async jwt({ token, user, trigger, session }) {
+    async jwt({ token, user }) {
       // Initial sign in
       if (user) {
         return {
@@ -128,11 +139,6 @@ const handler = NextAuth({
         };
       }
 
-      // Update session trigger
-      if (trigger === "update" && session) {
-        return { ...token, ...session.user };
-      }
-
       // Return previous token if the access token has not expired yet
       if (Date.now() < token.accessTokenExpires) {
         return token;
@@ -141,9 +147,20 @@ const handler = NextAuth({
       // Access token has expired, try to update it
       try {
         const refreshedTokens = await refreshAccessToken(token.refreshToken);
+        if (!baseUrl) throw new Error("NEXT_PUBLIC_API_URL is not configured");
+        const profileResponse = await fetch(`${baseUrl}/user/me`, {
+          headers: { Authorization: `Bearer ${refreshedTokens.accessToken}` },
+          cache: "no-store",
+        });
+        if (!profileResponse.ok)
+          throw new Error("Unable to verify account role");
+        const profilePayload: unknown = await profileResponse.json();
+        const role = getProfileRole(profilePayload);
+        if (!isStaffRole(role)) throw new Error("Dashboard access revoked");
 
         return {
           ...token,
+          role,
           accessToken: refreshedTokens.accessToken,
           accessTokenExpires: Date.now() + refreshedTokens.expiresIn * 1000,
           refreshToken: refreshedTokens.refreshToken,
@@ -178,3 +195,20 @@ const handler = NextAuth({
 });
 
 export { handler as GET, handler as POST };
+
+function getProfileRole(payload: unknown): unknown {
+  if (!payload || typeof payload !== "object" || !("data" in payload)) {
+    return null;
+  }
+  const data = payload.data;
+  return data && typeof data === "object" && "role" in data ? data.role : null;
+}
+
+function getResponseMessage(payload: unknown): string | null {
+  return payload &&
+    typeof payload === "object" &&
+    "message" in payload &&
+    typeof payload.message === "string"
+    ? payload.message
+    : null;
+}

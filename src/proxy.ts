@@ -1,26 +1,34 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
+import {
+  areaForPath,
+  canAccess,
+  isStaffRole,
+  landingForRole,
+} from "@/lib/access";
 
 export async function proxy(request: NextRequest) {
   const token = await getToken({ req: request });
   const { pathname } = request.nextUrl;
 
-  const userRole = (token?.role as string)?.toUpperCase();
-  const isAdmin = userRole === "ADMIN";
-  const isGuest = !token;
+  if (!pathname.startsWith("/dashboard")) return NextResponse.next();
 
-  // Example: Block guests from /dashboard
-  if (isGuest && pathname.startsWith("/dashboard")) {
+  if (!token || token.error === "RefreshAccessTokenError") {
     const callbackUrl = encodeURIComponent(pathname);
     return NextResponse.redirect(
       new URL(`/?callbackUrl=${callbackUrl}`, request.url),
     );
   }
 
-  // Example: Block non-admins from /dashboard
-  if (!isAdmin && pathname.startsWith("/dashboard")) {
-    return NextResponse.redirect(new URL("/", request.url));
+  if (!isStaffRole(token.role)) {
+    return NextResponse.redirect(new URL("/?error=AccessDenied", request.url));
+  }
+
+  if (!canAccess(token.role, areaForPath(pathname))) {
+    return NextResponse.redirect(
+      new URL(landingForRole(token.role), request.url),
+    );
   }
 
   return NextResponse.next();

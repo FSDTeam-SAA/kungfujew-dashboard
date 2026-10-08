@@ -16,6 +16,7 @@ import {
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { RequestError } from "./request-error";
 import {
   useCustomer,
   useCustomers,
@@ -31,9 +32,17 @@ const money = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
 });
-function State({ loading, error }: { loading: boolean; error: Error | null }) {
+function State({
+  loading,
+  error,
+  retry,
+}: {
+  loading: boolean;
+  error: Error | null;
+  retry?: () => void;
+}) {
   if (loading) return <p role="status">Loading…</p>;
-  return error ? <p role="alert">{error.message}</p> : null;
+  return error ? <RequestError error={error} retry={retry} /> : null;
 }
 function Panel({
   title,
@@ -98,7 +107,13 @@ function Table({
 export function OverviewView() {
   const query = useDashboardSummary();
   if (query.isLoading || query.error)
-    return <State loading={query.isLoading} error={query.error} />;
+    return (
+      <State
+        loading={query.isLoading}
+        error={query.error}
+        retry={() => void query.refetch()}
+      />
+    );
   const data = query.data;
   if (!data) return null;
   const pendingActions = data.statusCounts
@@ -262,7 +277,13 @@ export function OrdersView() {
     status: status || undefined,
   });
   if (query.isLoading || query.error)
-    return <State loading={query.isLoading} error={query.error} />;
+    return (
+      <State
+        loading={query.isLoading}
+        error={query.error}
+        retry={() => void query.refetch()}
+      />
+    );
   const orders = query.data?.items || [];
   const meta = query.data?.meta;
 
@@ -441,7 +462,13 @@ export function OrdersView() {
 export function CustomersView() {
   const query = useCustomers({ page: 1, limit: 20 });
   if (query.isLoading || query.error)
-    return <State loading={query.isLoading} error={query.error} />;
+    return (
+      <State
+        loading={query.isLoading}
+        error={query.error}
+        retry={() => void query.refetch()}
+      />
+    );
   return (
     <Panel title="Customers">
       <ul className="space-y-3">
@@ -465,7 +492,13 @@ export function OrderDetailsView({ orderId }: { orderId: string }) {
   const query = useOrder(orderId);
   const actions = useOrderActions();
   if (query.isLoading || query.error)
-    return <State loading={query.isLoading} error={query.error} />;
+    return (
+      <State
+        loading={query.isLoading}
+        error={query.error}
+        retry={() => void query.refetch()}
+      />
+    );
   const order = query.data;
   if (!order) return null;
   const canApprove = order.status === "Booked";
@@ -746,7 +779,13 @@ function FinancialRow({
 export function CustomerDetailsView({ email }: { email: string }) {
   const query = useCustomer(email);
   if (query.isLoading || query.error)
-    return <State loading={query.isLoading} error={query.error} />;
+    return (
+      <State
+        loading={query.isLoading}
+        error={query.error}
+        retry={() => void query.refetch()}
+      />
+    );
   if (!query.data) return null;
   return (
     <div className="space-y-4">
@@ -775,6 +814,10 @@ export function PaymentsView() {
       <State
         loading={query.isLoading || summary.isLoading}
         error={query.error || summary.error}
+        retry={() => {
+          void query.refetch();
+          void summary.refetch();
+        }}
       />
     );
   const payments = query.data;
