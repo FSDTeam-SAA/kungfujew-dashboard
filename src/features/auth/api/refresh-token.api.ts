@@ -1,14 +1,18 @@
-interface ApiResponse<T> {
-  data: T;
-  message: string;
-  statusCode: number;
-}
+import { z } from "zod";
 
 export interface RefreshedTokens {
   accessToken: string;
   expiresIn: number;
   refreshToken: string;
 }
+
+const refreshedTokensSchema = z.object({
+  data: z.object({
+    accessToken: z.string().min(1),
+    refreshToken: z.string().min(1),
+    expiresIn: z.number().positive(),
+  }),
+});
 
 export async function refreshAccessToken(
   refreshToken: string,
@@ -26,11 +30,18 @@ export async function refreshAccessToken(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ refreshToken }),
   });
-  const payload = (await response.json()) as ApiResponse<RefreshedTokens>;
+  const payload: unknown = await response.json();
 
   if (!response.ok) {
-    throw new Error(payload.message || "Unable to refresh the session");
+    const message =
+      payload &&
+      typeof payload === "object" &&
+      "message" in payload &&
+      typeof payload.message === "string"
+        ? payload.message
+        : null;
+    throw new Error(message || "Unable to refresh the session");
   }
 
-  return payload.data;
+  return refreshedTokensSchema.parse(payload).data;
 }

@@ -3,8 +3,9 @@ export type DashboardSection =
   | "orders"
   | "payments"
   | "customers"
-  | "settings"
   | "stories"
+  | "users"
+  | "settings"
   | "projects";
 
 export interface ApiEnvelope<T> {

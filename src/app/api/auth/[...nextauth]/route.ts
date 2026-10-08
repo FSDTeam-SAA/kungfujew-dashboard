@@ -1,48 +1,27 @@
-// src/app/api/auth/[...nextauth]/route.ts
-
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import { z } from "zod";
+
+import { refreshAccessToken } from "@/features/auth/api/refresh-token.api";
+import { isStaffRole } from "@/lib/access";
+
 const baseUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000")
   .replace(/\/+$/, "")
   .replace(/\/api\/v1$/, "");
 
-declare module "next-auth" {
-  interface Session {
-    user: {
-      id: string;
-      name: string;
-      email: string;
-      image: string;
-      role: string;
-    };
-    accessToken: string;
-  }
-
-  interface User {
-    id: string;
-    name: string;
-    email: string;
-    image: string;
-    role: string;
-    token: string;
-    expiresIn: number;
-    refreshToken: string;
-  }
-}
-
-declare module "next-auth/jwt" {
-  interface JWT {
-    id: string;
-    name: string;
-    email: string;
-    image: string;
-    role: string;
-    accessToken: string;
-    refreshToken: string;
-  }
-}
-
-import { refreshAccessToken } from "@/features/auth/api/refresh-token.api";
+const loginResponseSchema = z.object({
+  data: z.object({
+    user: z.object({
+      id: z.string().min(1),
+      fullName: z.string(),
+      email: z.string().email(),
+      role: z.string(),
+    }),
+    accessToken: z.string().min(1),
+    refreshToken: z.string().min(1),
+    expiresIn: z.number().positive(),
+  }),
+});
 
 const handler = NextAuth({
   providers: [
@@ -57,12 +36,8 @@ const handler = NextAuth({
           throw new Error("Email and password are required");
         }
 
-        if (!baseUrl) {
-          throw new Error("NEXT_PUBLIC_API_URL is not configured");
-        }
-
         try {
-          const res = await fetch(`${baseUrl}/auth/login`, {
+          const response = await fetch(baseUrl + "/auth/login", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -70,18 +45,21 @@ const handler = NextAuth({
               password: credentials.password,
             }),
           });
+          const payload: unknown = await response.json();
 
-          const data = await res.json();
-
-          if (!res.ok) {
-            throw new Error(data.message || "Login failed");
+          if (!response.ok) {
+            throw new Error(getResponseMessage(payload) ?? "Login failed");
           }
 
-          const user = data.data?.user;
-          const accessToken = data.data?.accessToken;
-
-          if (!user || !accessToken) {
+          const parsed = loginResponseSchema.safeParse(payload);
+          if (!parsed.success) {
             throw new Error("Invalid response from server");
+          }
+
+          const { user, accessToken, refreshToken, expiresIn } =
+            parsed.data.data;
+          if (!isStaffRole(user.role)) {
+            throw new Error("This account does not have dashboard access");
           }
 
           return {
@@ -91,11 +69,8 @@ const handler = NextAuth({
             image: "",
             role: user.role,
             token: accessToken,
-            expiresIn:
-              typeof data.data.expiresIn === "number"
-                ? data.data.expiresIn
-                : 900,
-            refreshToken: data.data?.refreshToken,
+            refreshToken,
+            expiresIn,
           };
         } catch (error) {
           throw error instanceof Error
@@ -105,14 +80,11 @@ const handler = NextAuth({
       },
     }),
   ],
-
   session: {
     strategy: "jwt",
   },
-
   callbacks: {
     async jwt({ token, user, trigger, session }) {
-      // Initial sign in
       if (user) {
         return {
           ...token,
@@ -127,7 +99,6 @@ const handler = NextAuth({
         };
       }
 
-      // Update session trigger
       if (trigger === "update" && session) {
         return {
           ...token,
@@ -136,17 +107,31 @@ const handler = NextAuth({
         };
       }
 
-      // Return previous token if the access token has not expired yet
       if (Date.now() < token.accessTokenExpires) {
         return token;
       }
 
-      // Access token has expired, try to update it
       try {
         const refreshedTokens = await refreshAccessToken(token.refreshToken);
+        const profileResponse = await fetch(baseUrl + "/user/me", {
+          headers: {
+            Authorization: "Bearer " + refreshedTokens.accessToken,
+          },
+          cache: "no-store",
+        });
+
+        if (!profileResponse.ok) {
+          throw new Error("Unable to verify account role");
+        }
+
+        const role = getProfileRole(await profileResponse.json());
+        if (!isStaffRole(role)) {
+          throw new Error("Dashboard access revoked");
+        }
 
         return {
           ...token,
+          role,
           accessToken: refreshedTokens.accessToken,
           accessTokenExpires: Date.now() + refreshedTokens.expiresIn * 1000,
           refreshToken: refreshedTokens.refreshToken,
@@ -159,25 +144,39 @@ const handler = NextAuth({
         };
       }
     },
-
     async session({ session, token }) {
-      if (token) {
-        session.user = {
-          ...session.user,
-          id: token.id,
-          name: token.name,
-          email: token.email,
-          image: token.image,
-          role: token.role,
-        };
-        session.accessToken = token.accessToken;
-        session.error = token.error;
-      }
+      session.user = {
+        ...session.user,
+        id: token.id,
+        name: token.name,
+        email: token.email,
+        image: token.image,
+        role: token.role,
+      };
+      session.accessToken = token.accessToken;
+      session.error = token.error;
       return session;
     },
   },
-
   secret: process.env.NEXTAUTH_SECRET,
 });
 
 export { handler as GET, handler as POST };
+
+function getProfileRole(payload: unknown): unknown {
+  if (!payload || typeof payload !== "object" || !("data" in payload)) {
+    return null;
+  }
+
+  const data = payload.data;
+  return data && typeof data === "object" && "role" in data ? data.role : null;
+}
+
+function getResponseMessage(payload: unknown): string | null {
+  return payload &&
+    typeof payload === "object" &&
+    "message" in payload &&
+    typeof payload.message === "string"
+    ? payload.message
+    : null;
+}

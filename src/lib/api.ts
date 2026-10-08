@@ -10,12 +10,11 @@ export const api = axios.create({
   withCredentials: false,
 });
 
-// Request interceptor to add the access token to headers
 api.interceptors.request.use(
   async (config) => {
     const session = await getSession();
     if (session?.accessToken) {
-      config.headers.Authorization = `Bearer ${session.accessToken}`;
+      config.headers.Authorization = "Bearer " + session.accessToken;
     }
     return config;
   },
@@ -26,13 +25,11 @@ api.interceptors.request.use(
   },
 );
 
-// Response interceptor to handle 401 errors
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
 
-    // If the error is 401 and we haven't retried yet
     if (
       error.response?.status === 401 &&
       originalRequest &&
@@ -41,18 +38,22 @@ api.interceptors.response.use(
       originalRequest._retry = true;
 
       const session = await getSession();
+      const currentAuthorization = originalRequest.headers?.Authorization;
+      const refreshedAuthorization = session?.accessToken
+        ? "Bearer " + session.accessToken
+        : undefined;
 
-      // If there's an error in the session (refresh failed), log out
-      if (session?.error === "RefreshAccessTokenError") {
-        signOut({ callbackUrl: "/" });
+      if (
+        session?.error === "RefreshAccessTokenError" ||
+        !refreshedAuthorization ||
+        refreshedAuthorization === currentAuthorization
+      ) {
+        await signOut({ callbackUrl: "/" });
         return Promise.reject(error);
       }
 
-      // If we have a new access token, retry the request
-      if (session?.accessToken) {
-        originalRequest.headers.Authorization = `Bearer ${session.accessToken}`;
-        return api(originalRequest);
-      }
+      originalRequest.headers.Authorization = refreshedAuthorization;
+      return api(originalRequest);
     }
 
     const message = error.response?.data?.message;
