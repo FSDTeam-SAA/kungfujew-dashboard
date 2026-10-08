@@ -13,6 +13,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { getApiBaseUrl } from "@/lib/api-url";
 
 type AuthStep = "login" | "forgot-password" | "verify-otp" | "change-password";
 
@@ -46,13 +47,7 @@ async function postAuth<T>(
   path: string,
   body: Record<string, string>,
 ): Promise<T> {
-  const baseUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000")
-    .replace(/\/+$/, "")
-    .replace(/\/api\/v1$/, "");
-
-  if (!baseUrl) {
-    throw new Error("NEXT_PUBLIC_API_URL is not configured");
-  }
+  const baseUrl = getApiBaseUrl();
 
   const response = await fetch(`${baseUrl}${path}`, {
     method: "POST",

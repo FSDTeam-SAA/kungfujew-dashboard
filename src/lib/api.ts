@@ -1,9 +1,9 @@
 import axios from "axios";
 import { getSession, signOut } from "next-auth/react";
 
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000")
-  .replace(/\/+$/, "")
-  .replace(/\/api\/v1$/, "");
+import { getApiBaseUrl } from "./api-url";
+
+const API_URL = getApiBaseUrl();
 
 export const api = axios.create({
   baseURL: API_URL,

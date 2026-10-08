@@ -4,10 +4,9 @@ import { z } from "zod";
 
 import { refreshAccessToken } from "@/features/auth/api/refresh-token.api";
 import { isStaffRole } from "@/lib/access";
+import { getApiBaseUrl } from "@/lib/api-url";
 
-const baseUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000")
-  .replace(/\/+$/, "")
-  .replace(/\/api\/v1$/, "");
+const baseUrl = getApiBaseUrl();
 
 const loginResponseSchema = z.object({
   data: z.object({

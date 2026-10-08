@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { getApiBaseUrl } from "@/lib/api-url";
+
 export interface RefreshedTokens {
   accessToken: string;
   expiresIn: number;
@@ -17,13 +19,7 @@ const refreshedTokensSchema = z.object({
 export async function refreshAccessToken(
   refreshToken: string,
 ): Promise<RefreshedTokens> {
-  const baseUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000")
-    .replace(/\/+$/, "")
-    .replace(/\/api\/v1$/, "");
-
-  if (!baseUrl) {
-    throw new Error("NEXT_PUBLIC_API_URL is not configured");
-  }
+  const baseUrl = getApiBaseUrl();
 
   const response = await fetch(`${baseUrl}/auth/refresh-token`, {
     method: "POST",
