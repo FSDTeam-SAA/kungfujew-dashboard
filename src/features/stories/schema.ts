@@ -8,16 +8,29 @@ export const shipmentStatuses = [
   "cancelled",
 ] as const;
 
+export function normalizeStorySlug(value: string): string {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s_-]/g, "")
+    .replace(/[\s_]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 export const storyFormSchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(200),
   slug: z
     .string()
-    .trim()
-    .toLowerCase()
-    .max(200)
-    .regex(
-      /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
-      "Use letters, numbers and single hyphens",
+    .transform(normalizeStorySlug)
+    .pipe(
+      z
+        .string()
+        .max(200)
+        .regex(
+          /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
+          "Use letters, numbers and single hyphens",
+        ),
     ),
   metaDescription: z
     .string()

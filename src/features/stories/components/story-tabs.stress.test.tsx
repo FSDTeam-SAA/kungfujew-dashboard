@@ -84,6 +84,15 @@ describe("Empirical Stress Testing: generateSlug", () => {
     );
   });
 
+  it("normalizes manual slugs before schema validation", () => {
+    const parsed = storyFormSchema.parse({
+      ...defaultValues,
+      slug: "Miami to Seattle Delivery!",
+    });
+
+    expect(parsed.slug).toBe("miami-to-seattle-delivery");
+  });
+
   it("handles multiple hyphens, leading, and trailing hyphens", () => {
     expect(generateSlug("---test---slug---")).toBe("test-slug");
     expect(generateSlug("-leading-and-trailing-")).toBe("leading-and-trailing");
@@ -207,14 +216,9 @@ describe("Empirical Component Stress Testing: SeoSocialTab", () => {
   });
 
   it("evaluates meta description character counter thresholds: 0, 149, 150, 160, 161", async () => {
-    let testForm: ReturnType<typeof useForm<StoryFormValues>> | null = null;
-
     render(
       <TestFormWrapper initialValues={{ metaDescription: "" }}>
-        {(form) => {
-          testForm = form;
-          return <SeoSocialTab form={form} />;
-        }}
+        {(form) => <SeoSocialTab form={form} />}
       </TestFormWrapper>,
     );
 

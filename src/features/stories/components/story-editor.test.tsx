@@ -83,6 +83,53 @@ describe("story editorial workflow", () => {
     );
   });
 
+  it("converts manually entered slug spaces into hyphens", () => {
+    render(
+      <StoryEditor story={story} onClose={jest.fn()} onSaved={jest.fn()} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "SEO & Social" }));
+    fireEvent.change(screen.getByLabelText("URL slug"), {
+      target: { value: "Dallas to Seattle delivery" },
+    });
+
+    expect(screen.getByLabelText("URL slug")).toHaveValue(
+      "dallas-to-seattle-delivery",
+    );
+  });
+
+  it("fills a new story slug from its title until the editor customizes it", () => {
+    render(<StoryEditor onClose={jest.fn()} onSaved={jest.fn()} />);
+
+    fireEvent.change(screen.getByLabelText("Story title"), {
+      target: { value: "Dallas to Seattle delivery" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "SEO & Social" }));
+
+    expect(screen.getByLabelText("URL slug")).toHaveValue(
+      "dallas-to-seattle-delivery",
+    );
+  });
+
+  it("preserves a custom slug when the title changes", () => {
+    render(<StoryEditor onClose={jest.fn()} onSaved={jest.fn()} />);
+
+    fireEvent.change(screen.getByLabelText("Story title"), {
+      target: { value: "Dallas to Seattle delivery" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "SEO & Social" }));
+    fireEvent.change(screen.getByLabelText("URL slug"), {
+      target: { value: "priority-route" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Narrative & Editor" }));
+    fireEvent.change(screen.getByLabelText("Story title"), {
+      target: { value: "Dallas to Miami delivery" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "SEO & Social" }));
+
+    expect(screen.getByLabelText("URL slug")).toHaveValue("priority-route");
+  });
+
   it("offers recovery and flags a newer server version", async () => {
     writeStoryDraft(draftKey("staff-1", story._id), {
       version: 1,

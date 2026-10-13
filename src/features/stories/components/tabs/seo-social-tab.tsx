@@ -34,21 +34,10 @@ import {
   FormDescription,
 } from "@/components/ui/form";
 import { cn } from "@/lib/utils";
+import { normalizeStorySlug } from "../../schema";
 import type { SeoSocialTabProps } from "../../types";
 
-/**
- * Transforms an arbitrary title string into a clean, URL-friendly kebab-case slug.
- * Example: "Coast to Coast Classic Haul! (2026)" -> "coast-to-coast-classic-haul-2026"
- */
-export function generateSlug(title: string): string {
-  return title
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, "") // remove non-alphanumeric chars except whitespace and hyphens
-    .replace(/[\s_]+/g, "-") // convert spaces and underscores to hyphens
-    .replace(/-+/g, "-") // collapse multiple hyphens
-    .replace(/^-+|-+$/g, ""); // strip leading and trailing hyphens
-}
+export { normalizeStorySlug as generateSlug } from "../../schema";
 
 export function SeoSocialTab({ form, coverPreviewUrl }: SeoSocialTabProps) {
   const [previewTab, setPreviewTab] = React.useState<"serp" | "social">("serp");
@@ -74,7 +63,7 @@ export function SeoSocialTab({ form, coverPreviewUrl }: SeoSocialTabProps) {
       return;
     }
 
-    const cleanSlug = generateSlug(currentTitle);
+    const cleanSlug = normalizeStorySlug(currentTitle);
     form.setValue("slug", cleanSlug, {
       shouldDirty: true,
       shouldValidate: true,
@@ -140,6 +129,9 @@ export function SeoSocialTab({ form, coverPreviewUrl }: SeoSocialTabProps) {
                     <Input
                       id="slug"
                       {...field}
+                      onChange={(event) =>
+                        field.onChange(normalizeStorySlug(event.target.value))
+                      }
                       placeholder="e.g. coast-to-coast-classic-car-haul"
                       className={cn(
                         "bg-white sm:rounded-l-none text-sm dark:bg-slate-950",
@@ -151,8 +143,8 @@ export function SeoSocialTab({ form, coverPreviewUrl }: SeoSocialTabProps) {
                 </FormControl>
 
                 <FormDescription className="text-xs text-[#59677c] dark:text-slate-400">
-                  A unique, hyphenated web path for this story. Lowercase
-                  letters, numbers, and hyphens only.
+                  Spaces and punctuation become hyphens automatically. The path
+                  uses lowercase letters, numbers, and hyphens only.
                 </FormDescription>
                 <FormMessage />
               </FormItem>

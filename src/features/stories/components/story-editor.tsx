@@ -1,7 +1,13 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  type ChangeEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { useSession } from "next-auth/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -38,6 +44,7 @@ import { useStoryLocalRecovery } from "../hooks/use-story-local-recovery";
 import {
   serviceLines,
   shipmentStatuses,
+  normalizeStorySlug,
   storyFormSchema,
   type Story,
   type StoryFormValues,
@@ -63,17 +70,6 @@ const emptyStory: StoryFormValues = {
 };
 
 const META_DESCRIPTION_TARGET = { min: 150, ideal: 160, max: 160 };
-
-function generateSlug(title: string): string {
-  return title
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .slice(0, 80)
-    .replace(/^-+|-+$/g, "");
-}
 
 // ─── Primitive helpers ─────────────────────────────────────────────────────────
 
@@ -503,10 +499,17 @@ function SeoTab() {
   const metaDescription = useWatch<StoryFormValues, "metaDescription">({
     name: "metaDescription",
   });
+  const slugField = register("slug");
 
   const handleGenerateSlug = () => {
-    const generated = generateSlug(title || "");
-    if (generated) setValue("slug", generated, { shouldDirty: true });
+    const generated = normalizeStorySlug(title || "");
+    if (generated)
+      setValue("slug", generated, { shouldDirty: true, shouldValidate: true });
+  };
+
+  const handleSlugChange = (event: ChangeEvent<HTMLInputElement>) => {
+    event.target.value = normalizeStorySlug(event.target.value);
+    slugField.onChange(event);
   };
 
   return (
@@ -521,7 +524,7 @@ function SeoTab() {
         label="URL slug"
         name="slug"
         error={errors.slug?.message}
-        hint="The unique path for this story on the website"
+        hint="The unique path for this story. Spaces and punctuation become hyphens automatically."
         aside={
           <button
             type="button"
@@ -539,7 +542,8 @@ function SeoTab() {
           </span>
           <Input
             id="slug"
-            {...register("slug")}
+            {...slugField}
+            onChange={handleSlugChange}
             aria-invalid={Boolean(errors.slug)}
             aria-describedby={errors.slug ? "slug-error" : undefined}
             className="rounded-l-none border-[#d7deea] bg-white text-sm focus-visible:border-[#012055] focus-visible:ring-[#012055]/20"
@@ -928,7 +932,25 @@ export function StoryEditor({
   // Subscribe only to the fields that drive header display — avoids global re-render
   const isPublished = useWatch({ control: form.control, name: "isPublished" });
   const savedImage = useWatch({ control: form.control, name: "image" });
+  const title = useWatch({ control: form.control, name: "title" });
+  const slug = useWatch({ control: form.control, name: "slug" });
+  const lastGeneratedSlug = useRef("");
   const coverSrc = coverPreviewUrl ?? savedImage ?? null;
+
+  useEffect(() => {
+    if (story) return;
+
+    const generatedSlug = normalizeStorySlug(title ?? "");
+    if (!generatedSlug || (slug && slug !== lastGeneratedSlug.current)) return;
+
+    lastGeneratedSlug.current = generatedSlug;
+    if (slug !== generatedSlug) {
+      form.setValue("slug", generatedSlug, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+    }
+  }, [form, slug, story, title]);
 
   const recovery = useStoryLocalRecovery({
     form,
