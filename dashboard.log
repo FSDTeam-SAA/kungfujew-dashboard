@@ -1,0 +1,8 @@
+▲ Next.js 16.2.12 (webpack)
+- Local:         http://localhost:3001
+- Network:       http://10.10.5.55:3001
+- Environments: .env
+✓ Ready in 367ms
+⚠ `images.domains` is deprecated in favor of `images.remotePatterns`. Please update next.config.ts to protect your application from malicious users.
+[32m✔[0m [33mConsole Ninja[0m extension is connected to [33mNext.js[0m, see [36mhttps://tinyurl.com/2vt8jxzw[0m
+

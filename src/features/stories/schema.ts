@@ -9,13 +9,42 @@ export const shipmentStatuses = [
 ] as const;
 
 export const storyFormSchema = z.object({
-  title: z.string().trim().min(1, "Title is required"),
-  slug: z.string().trim().min(1, "Slug is required"),
-  metaDescription: z.string().trim().min(1, "Meta description is required"),
-  content: z.string().trim().min(1, "Content is required"),
-  pickupLocation: z.string().trim().min(1, "Pickup location is required"),
-  destination: z.string().trim().min(1, "Destination is required"),
-  shipmentType: z.string().trim().min(1, "Shipment type is required"),
+  title: z.string().trim().min(1, "Title is required").max(200),
+  slug: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .max(200)
+    .regex(
+      /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
+      "Use letters, numbers and single hyphens",
+    ),
+  metaDescription: z
+    .string()
+    .trim()
+    .min(1, "Meta description is required")
+    .max(500),
+  content: z
+    .string()
+    .trim()
+    .max(500000)
+    .refine(
+      (html) =>
+        Boolean(
+          html
+            .replace(/<[^>]*>/g, "")
+            .replace(/&nbsp;|&#0*160;|&#x0*a0;/gi, " ")
+            .trim(),
+        ),
+      "Add text to the story body",
+    ),
+  pickupLocation: z
+    .string()
+    .trim()
+    .min(1, "Pickup location is required")
+    .max(200),
+  destination: z.string().trim().min(1, "Destination is required").max(200),
+  shipmentType: z.string().trim().min(1, "Shipment type is required").max(200),
   serviceLine: z
     .string()
     .refine(
@@ -23,33 +52,57 @@ export const storyFormSchema = z.object({
       "Select a service line",
     ),
   shipmentStatus: z.enum(shipmentStatuses),
-  imageAlt: z.string(),
+  image: z.string().max(2048).optional(),
+  imageAlt: z.string().max(500),
   isPublished: z.boolean(),
-  faqs: z.array(
-    z.object({
-      question: z.string().trim().min(1, "Question is required"),
-      answer: z.string().trim().min(1, "Answer is required"),
-    }),
-  ),
+  faqs: z
+    .array(
+      z.object({
+        question: z.string().trim().min(1, "Question is required").max(300),
+        answer: z.string().trim().min(1, "Answer is required").max(10000),
+      }),
+    )
+    .max(20, "A story can contain up to 20 FAQs"),
 });
 
 export type StoryFormValues = z.infer<typeof storyFormSchema>;
 
-export const storySchema = storyFormSchema.extend({
+// Read legacy drafts without applying the stricter rules for new writes.
+export const storySchema = z.object({
   _id: z.string(),
-  serviceLine: z.enum(serviceLines).optional(),
+  title: z.string(),
+  slug: z.string(),
+  metaDescription: z.string(),
+  content: z.string(),
+  pickupLocation: z.string(),
+  destination: z.string(),
+  shipmentType: z.string(),
+  shipmentStatus: z.enum(shipmentStatuses),
+  isPublished: z.boolean(),
+  serviceLine: z
+    .string()
+    .nullish()
+    .transform((value) => value ?? undefined),
   image: z.string().optional().nullable(),
   imageAlt: z.string().optional().default(""),
-  faqs: storyFormSchema.shape.faqs.optional().default([]),
+  faqs: z
+    .array(z.object({ question: z.string(), answer: z.string() }))
+    .nullish()
+    .transform((value) => value ?? []),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
 });
 
 export type Story = z.infer<typeof storySchema>;
+export const storySummarySchema = storySchema.omit({
+  content: true,
+  faqs: true,
+});
+export type StorySummary = z.infer<typeof storySummarySchema>;
 
 export const storyListSchema = z.object({
   success: z.literal(true),
-  data: z.array(storySchema),
+  data: z.array(storySummarySchema),
   pagination: z.object({
     page: z.number(),
     limit: z.number(),

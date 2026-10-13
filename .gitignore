@@ -15,6 +15,7 @@
 
 # environment
 .env
+.env.local
 
 # next.js
 /.next/

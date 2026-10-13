@@ -32,11 +32,13 @@ export function useStoryActions() {
         values,
         id,
         image,
+        baseUpdatedAt,
       }: {
         values: StoryFormValues;
         id?: string;
         image?: File | null;
-      }) => storiesApi.saveStory(values, id, image),
+        baseUpdatedAt?: string;
+      }) => storiesApi.saveStory(values, id, image, baseUpdatedAt),
       onSuccess: refresh,
     }),
     publish: useMutation({

@@ -1,5 +1,5 @@
 import { api } from "@/lib/api";
-import { listStories, saveStory } from "./stories.api";
+import { listStories, saveStory, uploadStoryImage } from "./stories.api";
 import type { StoryFormValues } from "../schema";
 
 jest.mock("@/lib/api", () => ({
@@ -36,7 +36,7 @@ describe("story API contract", () => {
       listStories({ page: 1, isPublished: "all" }),
     ).resolves.toMatchObject({ data: [] });
     expect(api.get).toHaveBeenCalledWith("/real-shipment-stories", {
-      params: { page: 1, isPublished: "all", limit: 10 },
+      params: { page: 1, isPublished: "all", limit: 10, summary: true },
     });
   });
 
@@ -49,5 +49,42 @@ describe("story API contract", () => {
     expect(body).toBeInstanceOf(FormData);
     expect((body as FormData).get("faqs")).toBe(JSON.stringify(values.faqs));
     expect((body as FormData).get("isPublished")).toBe("false");
+  });
+
+  it("uploads an inline image using the existing story endpoint", async () => {
+    jest.mocked(api.post).mockResolvedValue({
+      data: { success: true, url: "https://images.example.com/story.jpg" },
+    });
+    const file = new File(["image"], "story.jpg", { type: "image/jpeg" });
+
+    await expect(uploadStoryImage(file)).resolves.toBe(
+      "https://images.example.com/story.jpg",
+    );
+    expect(api.post).toHaveBeenCalledWith(
+      "/real-shipment-stories/upload-image",
+      expect.any(FormData),
+    );
+    const body = jest.mocked(api.post).mock.calls[0][1] as FormData;
+    expect(body.get("image")).toBe(file);
+  });
+
+  it("rejects an invalid inline image response", async () => {
+    jest.mocked(api.post).mockResolvedValue({
+      data: { success: true, url: "javascript:alert(1)" },
+    });
+    await expect(
+      uploadStoryImage(new File(["x"], "story.png", { type: "image/png" })),
+    ).rejects.toThrow();
+  });
+
+  it("sends explicit image removal and the original server version on updates", async () => {
+    jest.mocked(api.put).mockResolvedValue({
+      data: { success: true, data: { _id: "id", ...values, image: "" } },
+    });
+    const version = "2026-10-12T00:00:00.000Z";
+    await saveStory({ ...values, image: "" }, "id", null, version);
+    const body = jest.mocked(api.put).mock.calls[0][1] as FormData;
+    expect(body.get("image")).toBe("");
+    expect(body.get("baseUpdatedAt")).toBe(version);
   });
 });
