@@ -56,6 +56,121 @@ const story: Story = {
 };
 
 describe("story editorial workflow", () => {
+  it("undoes grouped FAQ typing across tab switches and redoes removals", () => {
+    render(
+      <StoryEditor story={story} onClose={jest.fn()} onSaved={jest.fn()} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "FAQs" }));
+    fireEvent.change(screen.getByLabelText("Question"), {
+      target: { value: "Updated?" },
+    });
+    fireEvent.change(screen.getByLabelText("Question"), {
+      target: { value: "Updated question?" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Shipment Details" }));
+    fireEvent.click(screen.getByRole("button", { name: "FAQs" }));
+    fireEvent.click(screen.getByRole("button", { name: "Undo FAQ edit" }));
+    expect(screen.getByLabelText("Question")).toHaveValue("How long?");
+    fireEvent.click(screen.getByRole("button", { name: "Redo FAQ edit" }));
+    expect(screen.getByLabelText("Question")).toHaveValue("Updated question?");
+    fireEvent.click(screen.getByRole("button", { name: "Remove question 1" }));
+    expect(screen.queryByLabelText("Question")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Undo FAQ edit" }));
+    expect(screen.getByLabelText("Question")).toHaveValue("Updated question?");
+    fireEvent.change(screen.getByLabelText("Question"), {
+      target: { value: "Different?" },
+    });
+    expect(
+      screen.getByRole("button", { name: "Redo FAQ edit" }),
+    ).toBeDisabled();
+  });
+
+  it("keeps FAQ keyboard undo focused and ignores composing shortcuts", () => {
+    render(
+      <StoryEditor story={story} onClose={jest.fn()} onSaved={jest.fn()} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "FAQs" }));
+    const question = screen.getByLabelText("Question");
+    question.focus();
+    fireEvent.change(question, { target: { value: "Changed?" } });
+    fireEvent.keyDown(question, { key: "z", ctrlKey: true, isComposing: true });
+    expect(question).toHaveValue("Changed?");
+    fireEvent.keyDown(question, { key: "z", ctrlKey: true });
+    expect(question).toHaveValue("How long?");
+    expect(question).toHaveFocus();
+    fireEvent.keyDown(question, { key: "z", ctrlKey: true, shiftKey: true });
+    expect(question).toHaveValue("Changed?");
+    fireEvent.click(screen.getByRole("button", { name: "Narrative & Editor" }));
+    fireEvent.keyDown(screen.getByLabelText("Story content"), {
+      key: "z",
+      ctrlKey: true,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "FAQs" }));
+    expect(screen.getByLabelText("Question")).toHaveValue("Changed?");
+  });
+
+  it("starts a fresh form and FAQ history when another story is opened", () => {
+    const { rerender } = render(
+      <StoryEditor story={story} onClose={jest.fn()} onSaved={jest.fn()} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "FAQs" }));
+    fireEvent.change(screen.getByLabelText("Question"), {
+      target: { value: "Changed?" },
+    });
+    rerender(
+      <StoryEditor
+        story={{ ...story, _id: "another-story", title: "Another story" }}
+        onClose={jest.fn()}
+        onSaved={jest.fn()}
+      />,
+    );
+    expect(screen.getByLabelText("Story title")).toHaveValue("Another story");
+    fireEvent.click(screen.getByRole("button", { name: "FAQs" }));
+    expect(
+      screen.getByRole("button", { name: "Undo FAQ edit" }),
+    ).toBeDisabled();
+    expect(screen.getByLabelText("Question")).toHaveValue("How long?");
+  });
+
+  it("positions saved covers and resets the position when removing them", async () => {
+    mockSave.mockResolvedValue(story);
+    render(
+      <StoryEditor
+        story={{ ...story, image: "https://example.com/cover.jpg" }}
+        onClose={jest.fn()}
+        onSaved={jest.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Reposition image" }));
+    fireEvent.change(screen.getByLabelText("Horizontal position"), {
+      target: { value: "25" },
+    });
+    fireEvent.change(screen.getByLabelText("Vertical position"), {
+      target: { value: "75" },
+    });
+    expect(screen.getByRole("img", { name: "Vehicle on carrier" })).toHaveStyle(
+      { objectPosition: "25% 75%" },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Review story" }));
+    expect(screen.getByRole("img")).toHaveStyle({ objectPosition: "25% 75%" });
+    fireEvent.click(screen.getByRole("button", { name: "Continue writing" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove image" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Save draft" })).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    await waitFor(() =>
+      expect(mockSave).toHaveBeenCalledWith(
+        expect.objectContaining({
+          values: expect.objectContaining({
+            image: "",
+            coverPosition: { x: 50, y: 50 },
+          }),
+        }),
+      ),
+    );
+  });
+
   beforeEach(() => {
     localStorage.clear();
     mockSave.mockReset();
