@@ -52,6 +52,8 @@ function storyFormData(values: StoryFormValues, image?: File | null): FormData {
   }
   form.set("isPublished", String(values.isPublished));
   form.set("faqs", JSON.stringify(values.faqs));
+  if (values.coverPosition)
+    form.set("coverPosition", JSON.stringify(values.coverPosition));
   if (image) form.set("image", image);
   else if (values.image !== undefined) form.set("image", values.image);
   return form;

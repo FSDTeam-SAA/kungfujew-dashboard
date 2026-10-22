@@ -18,6 +18,13 @@ export function normalizeStorySlug(value: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+export const coverPositionSchema = z.object({
+  x: z.number().finite().min(0).max(100),
+  y: z.number().finite().min(0).max(100),
+});
+export type CoverPosition = z.infer<typeof coverPositionSchema>;
+export const centeredCover: CoverPosition = { x: 50, y: 50 };
+
 export const storyFormSchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(200),
   slug: z
@@ -66,6 +73,7 @@ export const storyFormSchema = z.object({
     ),
   shipmentStatus: z.enum(shipmentStatuses),
   image: z.string().max(2048).optional(),
+  coverPosition: coverPositionSchema.optional(),
   imageAlt: z.string().max(500),
   isPublished: z.boolean(),
   faqs: z
@@ -97,6 +105,7 @@ export const storySchema = z.object({
     .nullish()
     .transform((value) => value ?? undefined),
   image: z.string().optional().nullable(),
+  coverPosition: coverPositionSchema.optional(),
   imageAlt: z.string().optional().default(""),
   faqs: z
     .array(z.object({ question: z.string(), answer: z.string() }))
