@@ -51,6 +51,33 @@ describe("story API contract", () => {
     expect((body as FormData).get("isPublished")).toBe("false");
   });
 
+  it("sends cover coordinates without changing the source image", async () => {
+    jest.mocked(api.put).mockResolvedValue({
+      data: {
+        success: true,
+        data: { _id: "id", ...values, coverPosition: { x: 15, y: 90 } },
+      },
+    });
+    const saved = await saveStory(
+      { ...values, coverPosition: { x: 15, y: 90 } },
+      "id",
+    );
+    const body = jest.mocked(api.put).mock.calls[0][1] as FormData;
+    expect(body.get("coverPosition")).toBe('{"x":15,"y":90}');
+    expect(body.has("image")).toBe(false);
+    expect(saved.coverPosition).toEqual({ x: 15, y: 90 });
+  });
+
+  it("leaves cover coordinates absent for older callers", async () => {
+    jest.mocked(api.put).mockResolvedValue({
+      data: { success: true, data: { _id: "id", ...values } },
+    });
+    await saveStory(values, "id");
+    expect(
+      (jest.mocked(api.put).mock.calls[0][1] as FormData).has("coverPosition"),
+    ).toBe(false);
+  });
+
   it("uploads an inline image using the existing story endpoint", async () => {
     jest.mocked(api.post).mockResolvedValue({
       data: { success: true, url: "https://images.example.com/story.jpg" },

@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { shipmentStatuses, type StoryFormValues } from "./schema";
+import {
+  coverPositionSchema,
+  centeredCover,
+  shipmentStatuses,
+  type StoryFormValues,
+} from "./schema";
 
 const draftValuesSchema: z.ZodType<StoryFormValues> = z.object({
   title: z.string(),
@@ -11,6 +16,7 @@ const draftValuesSchema: z.ZodType<StoryFormValues> = z.object({
   shipmentType: z.string(),
   serviceLine: z.string(),
   shipmentStatus: z.enum(shipmentStatuses),
+  coverPosition: coverPositionSchema.optional().default(centeredCover),
   imageAlt: z.string(),
   image: z.string().optional(),
   isPublished: z.boolean(),

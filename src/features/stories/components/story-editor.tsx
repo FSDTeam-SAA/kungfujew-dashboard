@@ -11,7 +11,6 @@ import {
 import { useSession } from "next-auth/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  useFieldArray,
   useForm,
   useFormContext,
   FormProvider,
@@ -20,8 +19,6 @@ import {
 import {
   ArrowLeft,
   CheckCircle2,
-  ChevronDown,
-  ChevronUp,
   Eye,
   Globe,
   HelpCircle,
@@ -29,9 +26,7 @@ import {
   Loader2,
   Package,
   PenLine,
-  Plus,
   RefreshCw,
-  Trash2,
   Wand2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -42,6 +37,7 @@ import { requestErrorMessage } from "@/features/dashboard/components/request-err
 import { isStoryDraftStale } from "../story-local-draft";
 import { useStoryLocalRecovery } from "../hooks/use-story-local-recovery";
 import {
+  centeredCover,
   serviceLines,
   shipmentStatuses,
   normalizeStorySlug,
@@ -50,6 +46,9 @@ import {
   type StoryFormValues,
 } from "../schema";
 import { useStoryActions } from "../hooks/use-stories";
+import { StoryFaqEditor } from "./story-faq-editor";
+import { StoryCoverEditor } from "./story-cover-editor";
+import { useFaqHistory } from "../hooks/use-faq-history";
 import { StoryRichTextEditor } from "./story-rich-text-editor";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -64,6 +63,7 @@ const emptyStory: StoryFormValues = {
   shipmentType: "",
   serviceLine: "",
   shipmentStatus: "pending",
+  coverPosition: centeredCover,
   imageAlt: "",
   isPublished: false,
   faqs: [],
@@ -213,41 +213,6 @@ function SocialPreview({
   );
 }
 
-// ─── Cover image preview ───────────────────────────────────────────────────────
-
-function CoverPreview({
-  src,
-  alt,
-  onRemove,
-}: {
-  src: string;
-  alt: string;
-  onRemove: () => void;
-}) {
-  return (
-    <div className="group relative aspect-[16/7] overflow-hidden rounded-lg bg-[#e9edf3]">
-      <Image
-        src={src}
-        alt={alt || "Story cover"}
-        fill
-        unoptimized
-        className="object-cover"
-        sizes="(max-width: 768px) 100vw, 700px"
-      />
-      <div className="absolute inset-0 flex items-end justify-end bg-gradient-to-t from-black/30 to-transparent">
-        <button
-          type="button"
-          onClick={onRemove}
-          className="m-3 flex items-center gap-1.5 rounded-md bg-white/90 px-3 py-1.5 text-xs font-medium text-[#1d2b4f] shadow transition hover:bg-white"
-        >
-          <Trash2 className="size-3" />
-          Remove image
-        </button>
-      </div>
-    </div>
-  );
-}
-
 // ─── Tab definitions ───────────────────────────────────────────────────────────
 
 type TabId = "narrative" | "shipment" | "seo" | "faqs";
@@ -290,6 +255,9 @@ function NarrativeTab({
   const title = useWatch<StoryFormValues, "title">({ name: "title" });
   const content = useWatch<StoryFormValues, "content">({ name: "content" });
   const imageAlt = useWatch<StoryFormValues, "imageAlt">({ name: "imageAlt" });
+  const coverPosition =
+    useWatch<StoryFormValues, "coverPosition">({ name: "coverPosition" }) ??
+    centeredCover;
   const fileRef = useRef<HTMLInputElement>(null);
 
   return (
@@ -311,9 +279,13 @@ function NarrativeTab({
         <p className="text-sm font-medium text-[#1d2b4f]">Cover image</p>
         {coverSrc ? (
           <>
-            <CoverPreview
+            <StoryCoverEditor
               src={coverSrc}
               alt={imageAlt || title || "Story cover"}
+              position={coverPosition}
+              onPositionChange={(value) =>
+                setValue("coverPosition", value, { shouldDirty: true })
+              }
               onRemove={() => onCoverChange(null)}
             />
             <Field
@@ -607,146 +579,6 @@ function SeoTab() {
   );
 }
 
-// ─── Tab: FAQs ─────────────────────────────────────────────────────────────────
-
-function FaqsTab() {
-  const {
-    register,
-    control,
-    formState: { errors },
-  } = useFormContext<StoryFormValues>();
-  const faqs = useFieldArray({ control, name: "faqs" });
-  const faqValues = useWatch({ control, name: "faqs" });
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-
-  const toggle = (id: string) =>
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-
-  return (
-    <div className="space-y-4">
-      <p className="text-sm leading-6 text-[#59677c]">
-        Add common questions and answers that will appear below the story. FAQs
-        improve SEO and help readers quickly find key information.
-      </p>
-
-      <div className="space-y-3">
-        {faqs.fields.length === 0 && (
-          <div className="flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-[#d7deea] py-10 text-center text-sm text-[#7b8ea6]">
-            <HelpCircle className="size-8 text-[#b6c7dd]" />
-            <div>
-              <p className="font-medium text-[#1d2b4f]">No FAQs yet</p>
-              <p className="text-xs">
-                Add your first question and answer below.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {faqs.fields.map((field, index) => {
-          const questionError = errors.faqs?.[index]?.question?.message;
-          const answerError = errors.faqs?.[index]?.answer?.message;
-          const hasError = Boolean(questionError || answerError);
-          const isCollapsed = collapsed.has(field.id) && !hasError;
-          return (
-            <div
-              key={field.id}
-              className={cn(
-                "rounded-xl border bg-white transition-shadow",
-                hasError ? "border-red-300" : "border-[#d7deea]",
-              )}
-            >
-              <div className="flex items-center justify-between gap-2 px-4 py-3">
-                <button
-                  type="button"
-                  onClick={() => toggle(field.id)}
-                  aria-expanded={!isCollapsed}
-                  aria-controls={`faq-panel-${field.id}`}
-                  className="flex min-w-0 flex-1 items-center gap-3 text-left"
-                >
-                  <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-[#e0e9f4] text-xs font-semibold text-[#012055]">
-                    {index + 1}
-                  </span>
-                  <span className="truncate text-sm font-medium text-[#1d2b4f]">
-                    {faqValues[index]?.question || (
-                      <span className="text-[#99a9bf] italic">
-                        Untitled question
-                      </span>
-                    )}
-                  </span>
-                  {isCollapsed ? (
-                    <ChevronDown className="ml-auto size-4 shrink-0 text-[#7b8ea6]" />
-                  ) : (
-                    <ChevronUp className="ml-auto size-4 shrink-0 text-[#7b8ea6]" />
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => faqs.remove(index)}
-                  className="flex size-8 shrink-0 items-center justify-center rounded-md text-[#7b8ea6] transition hover:bg-red-50 hover:text-red-600"
-                  aria-label={`Remove question ${index + 1}`}
-                >
-                  <Trash2 className="size-4" />
-                </button>
-              </div>
-
-              {!isCollapsed && (
-                <div
-                  id={`faq-panel-${field.id}`}
-                  className="space-y-4 border-t border-[#e8edf4] px-4 pb-4 pt-4"
-                >
-                  <Field
-                    label="Question"
-                    name={`faq-question-${index}`}
-                    error={questionError}
-                  >
-                    <Input
-                      id={`faq-question-${index}`}
-                      {...register(`faqs.${index}.question`)}
-                      placeholder="What do customers often ask about this shipment?"
-                      aria-invalid={Boolean(questionError)}
-                      className={inputClass}
-                    />
-                  </Field>
-                  <Field
-                    label="Answer"
-                    name={`faq-answer-${index}`}
-                    error={answerError}
-                  >
-                    <Textarea
-                      id={`faq-answer-${index}`}
-                      {...register(`faqs.${index}.answer`)}
-                      rows={3}
-                      placeholder="Provide a clear, helpful answer…"
-                      aria-invalid={Boolean(answerError)}
-                      className={inputClass}
-                    />
-                  </Field>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      <Button
-        type="button"
-        variant="outline"
-        disabled={faqs.fields.length >= 20}
-        onClick={() => faqs.append({ question: "", answer: "" })}
-        className="w-full border-dashed border-[#b6c7dd] text-[#012055] hover:bg-[#eef2f8]"
-      >
-        <Plus className="mr-2 size-4" />
-        Add FAQ
-      </Button>
-    </div>
-  );
-}
-
 // ─── Preview intro card (for Review story mode) ────────────────────────────────
 
 function PreviewIntro({
@@ -768,6 +600,9 @@ function PreviewIntro({
             fill
             unoptimized
             className="object-cover"
+            style={{
+              objectPosition: `${values.coverPosition?.x ?? 50}% ${values.coverPosition?.y ?? 50}%`,
+            }}
             sizes="(max-width: 1280px) 100vw, 900px"
           />
         </div>
@@ -888,7 +723,7 @@ function RecoveryStatus({
 
 // ─── Main StoryEditor component ────────────────────────────────────────────────
 
-export function StoryEditor({
+function StoryEditorSession({
   story,
   onClose,
   onSaved,
@@ -921,6 +756,7 @@ export function StoryEditor({
           shipmentType: story.shipmentType,
           serviceLine: story.serviceLine ?? "",
           shipmentStatus: story.shipmentStatus,
+          coverPosition: story.coverPosition ?? centeredCover,
           imageAlt: story.imageAlt ?? "",
           image: story.image ?? "",
           isPublished: story.isPublished,
@@ -928,6 +764,8 @@ export function StoryEditor({
         }
       : emptyStory,
   });
+
+  const faqHistory = useFaqHistory(form);
 
   // Subscribe only to the fields that drive header display — avoids global re-render
   const isPublished = useWatch({ control: form.control, name: "isPublished" });
@@ -989,6 +827,11 @@ export function StoryEditor({
       setSubmitError("");
       if (coverObjectUrl.current) URL.revokeObjectURL(coverObjectUrl.current);
       coverObjectUrl.current = file ? URL.createObjectURL(file) : null;
+      form.setValue(
+        "coverPosition",
+        { ...centeredCover },
+        { shouldDirty: true },
+      );
       setCoverFile(file);
       setCoverPreviewUrl(coverObjectUrl.current);
       if (!file) form.setValue("image", "", { shouldDirty: true });
@@ -1207,7 +1050,10 @@ export function StoryEditor({
                 <Button
                   type="button"
                   size="sm"
-                  onClick={recovery.restore}
+                  onClick={() => {
+                    recovery.restore();
+                    faqHistory.reset();
+                  }}
                   className="bg-[#012055] text-white hover:bg-[#1d2b4f]"
                 >
                   <RefreshCw className="mr-1.5 size-3.5" />
@@ -1294,7 +1140,9 @@ export function StoryEditor({
                   )}
                   {activeTab === "shipment" && <ShipmentTab />}
                   {activeTab === "seo" && <SeoTab />}
-                  {activeTab === "faqs" && <FaqsTab />}
+                  {activeTab === "faqs" && (
+                    <StoryFaqEditor history={faqHistory} />
+                  )}
                 </div>
               )}
             </fieldset>
@@ -1320,4 +1168,12 @@ export function StoryEditor({
       </section>
     </FormProvider>
   );
+}
+
+export function StoryEditor(props: {
+  story?: Story;
+  onClose: () => void;
+  onSaved: (message: string) => void;
+}) {
+  return <StoryEditorSession key={props.story?._id ?? "new"} {...props} />;
 }

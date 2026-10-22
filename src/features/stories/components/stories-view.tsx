@@ -11,6 +11,8 @@ import {
 } from "@/features/dashboard/components/request-error";
 import { useStory, useStories, useStoryActions } from "../hooks/use-stories";
 import { serviceLines, type StorySummary } from "../schema";
+import { useStoryAnalyticsBatch } from "../hooks/use-story-analytics";
+import { StoryReadership } from "./story-readership";
 
 export function StoriesView() {
   const [page, setPage] = useState(1);
@@ -28,6 +30,13 @@ export function StoriesView() {
     serviceLine: serviceLine === "all" ? undefined : serviceLine,
   };
   const query = useStories(params);
+  const readership = useStoryAnalyticsBatch(
+    query.data?.data.map((story) => story._id) ?? [],
+    !editing,
+  );
+  const readershipByStory = new Map(
+    readership.data?.stories.map((story) => [story.storyId, story]),
+  );
   const detail = useStory(editing && editing !== "new" ? editing : null);
   const actions = useStoryActions();
   const actionPending = actions.publish.isPending || actions.remove.isPending;
@@ -209,6 +218,22 @@ export function StoriesView() {
       {query.error && (
         <RequestError error={query.error} retry={() => void query.refetch()} />
       )}
+      {Boolean(query.data?.data.length) && readership.isPending && (
+        <p role="status" className="text-xs text-[#535d70]">
+          Loading readership counts…
+        </p>
+      )}
+      {readership.error && (
+        <div className="space-y-2">
+          <p className="text-sm text-[#535d70]">
+            Readership counts are unavailable.
+          </p>
+          <RequestError
+            error={readership.error}
+            retry={() => void readership.refetch()}
+          />
+        </div>
+      )}
       {query.data && (
         <>
           {query.data.data.length === 0 ? (
@@ -243,6 +268,9 @@ export function StoriesView() {
                         unoptimized
                         sizes="(max-width: 768px) 100vw, 33vw"
                         className="object-cover"
+                        style={{
+                          objectPosition: `${story.coverPosition?.x ?? 50}% ${story.coverPosition?.y ?? 50}%`,
+                        }}
                       />
                     </div>
                   )}
@@ -260,6 +288,15 @@ export function StoriesView() {
                     {story.metaDescription}
                   </p>
                   <p className="mt-2 text-xs text-[#535d70]">
+                    {readership.isFetching
+                      ? "Updating readership…"
+                      : readership.error
+                        ? "Readership unavailable"
+                        : readershipByStory.has(story._id)
+                          ? `${readershipByStory.get(story._id)?.opens} opens · ${readershipByStory.get(story._id)?.engaged} engaged · ${readershipByStory.get(story._id)?.completed} completed (last 30 days)`
+                          : "Readership unavailable"}
+                  </p>
+                  <p className="mt-2 text-xs text-[#535d70]">
                     {story.serviceLine?.replaceAll("-", " ") ?? "Unassigned"} ·{" "}
                     {story.shipmentStatus.replaceAll("_", " ")}
                   </p>
@@ -274,6 +311,7 @@ export function StoriesView() {
                     </p>
                   )}
                   <div className="mt-auto flex flex-wrap gap-2 pt-5">
+                    <StoryReadership storyId={story._id} title={story.title} />
                     <Button
                       type="button"
                       size="sm"
